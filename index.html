@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore the range overlap of Lupinus perennis and Lupinus polyphyllus in North America.">
+  <title>Lupine range overlap</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1f2133;
+      --muted: #6b6f85;
+      --paper: #f7f6fb;
+      --panel: #fff;
+      --purple: #5e3c99;
+      --orange: #e66101;
+      --teal: #1a9e8f;
+      --line: #e6e4ed;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--paper); font: 15px/1.5 system-ui, sans-serif; }
+    header { padding: 18px 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
+    header h1 { margin: 0; font: 600 1.8rem/1.15 Georgia, serif; }
+    header p { margin: 5px 0 0; color: var(--muted); }
+    .layout { display: grid; grid-template-columns: 310px minmax(0, 1fr); min-height: calc(100vh - 93px); }
+    aside { padding: 18px; background: #fff; border-right: 1px solid var(--line); }
+    main { min-width: 0; padding: 18px; }
+    fieldset { min-width: 0; margin: 0 0 14px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+    legend { padding: 0 5px; font-weight: 700; }
+    label { display: block; margin: 8px 0 4px; font-size: .88rem; font-weight: 600; }
+    select, input[type="number"], button { max-width: 100%; padding: 8px 9px; border: 1px solid #cbc9d5; border-radius: 6px; background: white; color: var(--ink); font: inherit; }
+    select { width: 100%; }
+    input[type="range"] { width: 100%; accent-color: var(--purple); }
+    input[type="checkbox"] { accent-color: var(--purple); }
+    .range-row, .inline { display: flex; align-items: center; gap: 9px; }
+    .range-row select { flex: 1; }
+    .months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 2px; }
+    .months label { display: flex; gap: 4px; align-items: center; margin: 2px 0; font-weight: 400; }
+    .check { display: flex; gap: 7px; align-items: flex-start; margin: 8px 0; font-size: .88rem; }
+    .help { margin: 5px 0 0; color: var(--muted); font-size: .8rem; }
+    .value { float: right; color: var(--muted); font-weight: 500; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; }
+    .toolbar label { display: inline-flex; align-items: center; gap: 5px; margin: 0; font-weight: 500; }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--purple); }
+    button.primary { color: white; border-color: var(--purple); background: var(--purple); }
+    button:disabled { cursor: wait; opacity: .65; }
+    nav { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+    nav button { margin: 0 0 -1px; border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; background: transparent; }
+    nav button.active { color: var(--purple); border-bottom-color: var(--purple); font-weight: 700; }
+    .tab { display: none; }
+    .tab.active { display: block; }
+    #map { height: min(70vh, 780px); min-height: 430px; border-radius: 10px; background: #e9e8ed; }
+    .note, #status, #load-status { color: var(--muted); font-size: .88rem; }
+    #load-status { margin: 0; }
+    #error { display: none; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #efb9b9; border-radius: 8px; background: #fff1f1; color: #8a1c1c; }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .card { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+    .card h2 { margin: 0 0 10px; font: 600 1.1rem Georgia, serif; }
+    .wide { grid-column: 1 / -1; }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+    th { background: #f5f4f8; }
+    .table-wrap { max-height: 540px; overflow: auto; }
+    .table-wrap thead { position: sticky; top: 0; }
+    .chart { width: 100%; min-height: 240px; overflow: hidden; }
+    .chart svg { display: block; width: 100%; height: auto; }
+    .chart text { fill: var(--muted); font: 11px system-ui, sans-serif; }
+    .methods { white-space: pre-wrap; }
+    #map-caption { margin: 9px 0 0; }
+    footer { padding: 14px 20px; color: var(--muted); text-align: center; font-size: .8rem; }
+    @media (max-width: 850px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { border-right: 0; border-bottom: 1px solid var(--line); }
+      .cards { grid-template-columns: 1fr; }
+      .wide { grid-column: auto; }
+      #map { height: 60vh; min-height: 360px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Lupine range overlap</h1>
+    <p>Explore iNaturalist / GBIF occurrence records for two North American lupines.</p>
+  </header>
+  <div class="layout">
+    <aside aria-label="Analysis filters">
+      <p id="load-status" role="status">Loading occurrence data…</p>
+      <fieldset>
+        <legend>Species</legend>
+        <label for="species-a">Species A</label><select id="species-a" disabled></select>
+        <label for="species-b">Species B</label><select id="species-b" disabled></select>
+      </fieldset>
+      <fieldset>
+        <legend>Records</legend>
+        <label>Years</label>
+        <div class="range-row"><select id="year-min" aria-label="First year" disabled></select><span>to</span><select id="year-max" aria-label="Last year" disabled></select></div>
+        <label>Months</label>
+        <div class="months" id="months"></div>
+        <label for="max-unc">Max coordinate uncertainty <span class="value"><span id="unc-value">10</span> km</span></label>
+        <input id="max-unc" type="range" min="1" max="100" value="10">
+        <label class="check"><input id="keep-unknown" type="checkbox" checked> Keep records without uncertainty data</label>
+        <label class="check"><input id="drop-obscured" type="checkbox" checked> Drop obscured / jittered locations</label>
+        <label for="countries">Countries <span class="help">(blank = all)</span></label>
+        <select id="countries" multiple size="5" disabled></select>
+      </fieldset>
+      <fieldset>
+        <legend>Grid analysis</legend>
+        <label for="cell-km">Grid cell size <span class="value"><span id="cell-value">100</span> km</span></label>
+        <input id="cell-km" type="range" min="10" max="300" value="100">
+        <label class="check"><input id="thin" type="checkbox" checked> One record per species, cell and year</label>
+        <p class="help">Thinning reduces the pull of heavily visited sites on overlap statistics.</p>
+      </fieldset>
+      <fieldset>
+        <legend>Display</legend>
+        <label for="heat-radius">Heat radius <span class="value"><span id="radius-value">15</span> px</span></label>
+        <input id="heat-radius" type="range" min="5" max="40" value="15">
+        <label for="heat-blur">Heat blur <span class="value"><span id="blur-value">25</span> px</span></label>
+        <input id="heat-blur" type="range" min="5" max="60" value="25">
+        <label for="heat-max">Saturation point <span class="value"><span id="heat-max-value">0.60</span></span></label>
+        <input id="heat-max" type="range" min="0.05" max="1" value="0.6" step="0.05">
+        <label class="check"><input id="equalize" type="checkbox" checked> Give both species equal total heat weight</label>
+        <label class="check"><input id="show-points" type="checkbox"> Show individual records</label>
+      </fieldset>
+    </aside>
+    <main>
+      <div id="error" role="alert"></div>
+      <nav aria-label="Analysis views">
+        <button class="active" data-tab="map-tab">Map</button>
+        <button data-tab="overlap-tab">Overlap</button>
+        <button data-tab="trends-tab">Phenology and trends</button>
+        <button data-tab="data-tab">Data</button>
+      </nav>
+      <section id="map-tab" class="tab active">
+        <div class="toolbar">
+          <label><input type="radio" name="map-mode" value="heat" checked> Density</label>
+          <label><input type="radio" name="map-mode" value="cats"> Occupied cells</label>
+          <label><input type="radio" name="map-mode" value="ratio"> Share ratio</label>
+          <button id="fit-map">Zoom to records</button>
+          <span id="status" role="status"></span>
+        </div>
+        <div id="map" aria-label="Interactive lupine occurrence map"></div>
+        <p id="map-caption" class="note"></p>
+      </section>
+      <section id="overlap-tab" class="tab">
+        <div class="cards">
+          <article class="card"><h2>Overlap metrics</h2><div id="stats"></div></article>
+          <article class="card"><h2>Records per cell</h2><div id="scatter" class="chart"></div></article>
+          <article class="card">
+            <h2>Do the distributions differ?</h2>
+            <label for="permutations">Permutations</label>
+            <select id="permutations"><option>199</option><option selected>499</option><option>999</option></select>
+            <button id="run-perm" class="primary">Run permutation test</button>
+            <pre id="perm-result" class="methods"></pre>
+            <p class="help">Species labels are shuffled among pooled records, holding observer effort constant. A low P suggests the species are more spatially distinct than shared sampling effort would produce.</p>
+          </article>
+          <article class="card"><h2>Methods text</h2><p id="methods" class="methods"></p></article>
+        </div>
+      </section>
+      <section id="trends-tab" class="tab">
+        <div class="cards">
+          <article class="card"><h2>Flowering-season timing <small>(share of each species' records)</small></h2><div id="month-chart" class="chart"></div></article>
+          <article class="card"><h2>Records per year</h2><div id="year-chart" class="chart"></div><p class="help">The most recent year may be incomplete.</p></article>
+          <article class="card wide"><h2>Latitudinal distribution</h2><div id="lat-chart" class="chart"></div></article>
+        </div>
+      </section>
+      <section id="data-tab" class="tab">
+        <div class="toolbar">
+          <button data-download="records">Filtered records (CSV)</button>
+          <button data-download="cells">Grid cells (CSV)</button>
+          <button data-download="stats">Overlap metrics (CSV)</button>
+        </div>
+        <div class="card table-wrap"><table id="records-table"></table><p id="table-note" class="help"></p></div>
+      </section>
+    </main>
+  </div>
+  <footer>Occurrence data are loaded from the CSV exports in this repository. Map tiles and browser libraries are provided by their respective services.</footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+  <script>
+    "use strict";
+    const DATA_FILES = [
+      "perennisNA2020-2026/0031029-260928105237408.csv",
+      "polyphyllusNA2020-2026/0031009-260928105237408.csv"
+    ];
+    const AEA = "+proj=aea +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs";
+    const COLORS = { A: "#5E3C99", B: "#E66101", both: "#1A9E8F" };
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    let allRecords = [], filtered = [], analysisRecords = [], gridCells = [], map, mapLayers = [];
+    let currentStats = [], errorTimer;
+    proj4.defs("LUPINE:AEA", AEA);
+
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value == null ? "" : value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const number = value => Number.isFinite(value) ? value.toLocaleString("en-US") : "—";
+    const parseNum = value => value == null || value === "" ? NaN : Number(value);
+    const txt = (row, names) => {
+      for (const name of names) {
+        const v = row[name];
+        if (v != null && String(v).trim() !== "") return String(v).trim();
+      }
+      return "";
+    };
+    function showError(message) {
+      $("error").textContent = message;
+      $("error").style.display = "block";
+      clearTimeout(errorTimer);
+      errorTimer = setTimeout(() => { $("error").style.display = "none"; }, 10000);
+    }
+    function parseRecord(row, source) {
+      const lat = parseNum(txt(row, ["decimalLatitude", "latitude"]));
+      const lon = parseNum(txt(row, ["decimalLongitude", "longitude"]));
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180 || (!lat && !lon)) return null;
+      const rawSpecies = txt(row, ["species", "scientific_name", "scientificName"]);
+      const match = rawSpecies.match(/^([A-Z][A-Za-z-]+ [a-z-]+)/);
+      if (!match) return null;
+      const date = txt(row, ["eventDate", "observed_on", "time_observed_at"]).slice(0, 10);
+      const dateYear = /^\d{4}-\d{2}/.test(date) ? Number(date.slice(0, 4)) : NaN;
+      const dateMonth = /^\d{4}-\d{2}/.test(date) ? Number(date.slice(5, 7)) : NaN;
+      const year = Number.isInteger(dateYear) ? dateYear : parseNum(txt(row, ["year"]));
+      if (!Number.isInteger(year) || year < 1) return null;
+      const status = txt(row, ["occurrenceStatus"]).toUpperCase();
+      const quality = txt(row, ["quality_grade"]).toLowerCase();
+      if (status === "ABSENT" || (quality && quality !== "research")) return null;
+      const projected = proj4("EPSG:4326", "LUPINE:AEA", [lon, lat]);
+      const id = txt(row, ["gbifID", "id", "occurrenceID"]);
+      const rawUrl = txt(row, ["url", "references"]);
+      const uncertainty = parseNum(txt(row, ["coordinateUncertaintyInMeters", "positional_accuracy"])) / 1000;
+      return {
+        id: id || `${source}:${lon}:${lat}:${year}:${match[1]}`,
+        species: match[1], year, month: Number.isInteger(dateMonth) ? dateMonth : parseNum(txt(row, ["month"])),
+        date: date || "", latitude: lat, longitude: lon, x: projected[0], y: projected[1],
+        uncertainty, obscured: ["true", "t", "1"].includes(txt(row, ["coordinates_obscured"]).toLowerCase()),
+        country: txt(row, ["countryCode", "place_country_name"]),
+        state: txt(row, ["stateProvince", "place_state_name"]),
+        url: rawUrl || (/^\d+$/.test(txt(row, ["gbifID"])) ? `https://www.gbif.org/occurrence/${txt(row, ["gbifID"])}` : "")
+      };
+    }
+    async function loadData() {
+      if (!window.L || !window.Papa || !window.proj4) throw new Error("A browser library did not load. Check your internet connection and reload the page.");
+      for (let i = 0; i < DATA_FILES.length; i++) {
+        $("load-status").textContent = `Loading occurrence export ${i + 1} of ${DATA_FILES.length}…`;
+        const response = await fetch(DATA_FILES[i]);
+        if (!response.ok) throw new Error(`Could not load ${DATA_FILES[i]} (HTTP ${response.status}). Make sure both CSV exports are committed to the repository.`);
+        const text = await response.text();
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false });
+        if (parsed.errors.length && !parsed.data.length) throw new Error(`Could not parse ${DATA_FILES[i]}: ${parsed.errors[0].message}`);
+        for (const row of parsed.data) {
+          const record = parseRecord(row, i);
+          if (record) allRecords.push(record);
+        }
+      }
+      const seen = new Set();
+      allRecords = allRecords.filter(r => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      });
+      if (!allRecords.length) throw new Error("The CSV files loaded, but no usable occurrence records with coordinates and species names were found.");
+      initControls();
+      initMap();
+      $("load-status").textContent = `${number(allRecords.length)} usable records loaded`;
+      update();
+    }
+    function initControls() {
+      const speciesCounts = new Map();
+      allRecords.forEach(r => speciesCounts.set(r.species, (speciesCounts.get(r.species) || 0) + 1));
+      const species = [...speciesCounts.keys()].sort((a,b) => speciesCounts.get(b) - speciesCounts.get(a));
+      for (const id of ["species-a", "species-b"]) {
+        $(id).innerHTML = species.map(s => `<option value="${esc(s)}">${esc(s)} (${number(speciesCounts.get(s))})</option>`).join("");
+        $(id).disabled = false;
+      }
+      $("species-a").value = species[0] || "";
+      $("species-b").value = species[1] || species[0] || "";
+      const years = allRecords.map(r => r.year);
+      const lo = Math.min(...years), hi = Math.max(...years);
+      for (const id of ["year-min", "year-max"]) {
+        $(id).innerHTML = Array.from({length: hi - lo + 1}, (_, i) => lo + i).map(y => `<option>${y}</option>`).join("");
+        $(id).disabled = false;
+      }
+      $("year-min").value = lo; $("year-max").value = hi;
+      const countries = [...new Set(allRecords.map(r => r.country).filter(Boolean))].sort();
+      $("countries").innerHTML = countries.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+      $("countries").disabled = false;
+      $("months").innerHTML = MONTHS.map((m, i) => `<label><input type="checkbox" value="${i + 1}" checked>${m}</label>`).join("");
+      document.querySelectorAll("aside select, aside input").forEach(el => el.addEventListener("change", update));
+      document.querySelectorAll("aside input[type=range]").forEach(el => el.addEventListener("input", () => {
+        const target = {"max-unc":"unc-value","cell-km":"cell-value","heat-radius":"radius-value","heat-blur":"blur-value","heat-max":"heat-max-value"}[el.id];
+        if (target) $(target).textContent = el.id === "heat-max" ? Number(el.value).toFixed(2) : el.value;
+        if (el.id !== "heat-radius" && el.id !== "heat-blur" && el.id !== "heat-max") update();
+        else drawMap();
+      }));
+      document.querySelectorAll('input[name="map-mode"]').forEach(el => el.addEventListener("change", drawMap));
+      document.querySelectorAll("nav button").forEach(button => button.addEventListener("click", () => {
+        document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b === button));
+        document.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab.id === button.dataset.tab));
+        if (button.dataset.tab === "map-tab") setTimeout(() => map.invalidateSize(), 50);
+      }));
+      $("fit-map").addEventListener("click", fitMap);
+      $("run-perm").addEventListener("click", runPermutation);
+      document.querySelectorAll("[data-download]").forEach(b => b.addEventListener("click", () => download(b.dataset.download)));
+    }
+    function initMap() {
+      map = L.map("map", { preferCanvas: true, minZoom: 2 }).setView([45, -98], 3);
+      const light = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      });
+      const satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 18, attribution: "Tiles &copy; Esri"
+      });
+      light.addTo(map);
+      L.control.layers({"Light": light, "Satellite": satellite}, {}, {collapsed: true}).addTo(map);
+      L.control.scale({position: "bottomleft"}).addTo(map);
+    }
+    function filteredRecords() {
+      const a = $("species-a").value, b = $("species-b").value;
+      if (!a || !b || a === b) throw new Error("Choose two different species to compare.");
+      const minYear = Number($("year-min").value), maxYear = Number($("year-max").value);
+      const selectedMonths = new Set([...document.querySelectorAll("#months input:checked")].map(el => Number(el.value)));
+      const selectedCountries = new Set([...$("countries").selectedOptions].map(el => el.value));
+      const maxUnc = Number($("max-unc").value);
+      const rows = allRecords.filter(r => {
+        if (r.species !== a && r.species !== b) return false;
+        if (r.year < minYear || r.year > maxYear) return false;
+        if (Number.isFinite(r.month) && !selectedMonths.has(r.month)) return false;
+        if (Number.isFinite(r.uncertainty) ? r.uncertainty > maxUnc : !$("keep-unknown").checked) return false;
+        if ($("drop-obscured").checked && r.obscured) return false;
+        if (selectedCountries.size && !selectedCountries.has(r.country)) return false;
+        return true;
+      });
+      if (!rows.length) throw new Error("No records match the current filters.");
+      return rows;
+    }
+    function cellAssignment(rows) {
+      const size = Number($("cell-km").value) * 1000;
+      const seen = new Set();
+      const out = [];
+      for (const r of rows) {
+        const cx = Math.floor(r.x / size), cy = Math.floor(r.y / size);
+        const cellId = `${cx},${cy}`;
+        if ($("thin").checked) {
+          const key = `${r.species}|${cellId}|${r.year}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+        }
+        out.push({...r, grp: r.species === $("species-a").value ? "A" : "B", cx, cy, cellId});
+      }
+      return out;
+    }
+    function makeCells(rows) {
+      const cells = new Map();
+      for (const r of rows) {
+        let c = cells.get(r.cellId);
+        if (!c) { c = {cx:r.cx, cy:r.cy, a:0, b:0}; cells.set(r.cellId, c); }
+        c[r.grp === "A" ? "a" : "b"]++;
+      }
+      const list = [...cells.values()];
+      const totalA = list.reduce((s,c) => s+c.a, 0), totalB = list.reduce((s,c) => s+c.b, 0);
+      if (!totalA || !totalB) throw new Error("Both species need at least one record after applying filters.");
+      return list.map(c => ({...c, pa:c.a/totalA, pb:c.b/totalB,
+        category:c.a && c.b ? "Both" : c.a ? "Only A" : "Only B",
+        log2Ratio:c.a && c.b ? Math.log2((c.a/totalA)/(c.b/totalB)) : NaN}));
+    }
+    function spearman(x, y) {
+      const ranks = values => {
+        const order = values.map((v,i)=>({v,i})).sort((a,b)=>a.v-b.v), out = Array(values.length);
+        for (let i=0;i<order.length;) {
+          let j=i+1; while (j<order.length && order[j].v===order[i].v) j++;
+          const rank=(i+1+j)/2; for(let k=i;k<j;k++) out[order[k].i]=rank; i=j;
+        }
+        return out;
+      };
+      const rx=ranks(x), ry=ranks(y), mx=rx.reduce((a,b)=>a+b,0)/rx.length, my=ry.reduce((a,b)=>a+b,0)/ry.length;
+      let cov=0,vx=0,vy=0; for(let i=0;i<rx.length;i++){const dx=rx[i]-mx,dy=ry[i]-my;cov+=dx*dy;vx+=dx*dx;vy+=dy*dy;}
+      return vx && vy ? cov/Math.sqrt(vx*vy) : NaN;
+    }
+    function getStats(rows, cells) {
+      const a=rows.filter(r=>r.grp==="A"), b=rows.filter(r=>r.grp==="B");
+      const both=cells.filter(c=>c.a>0&&c.b>0).length, occupied=cells.length;
+      const occupiedA=cells.filter(c=>c.a>0).length, occupiedB=cells.filter(c=>c.b>0).length;
+      const mean = (rs, key) => rs.reduce((s,r)=>s+r[key],0)/rs.length;
+      const schoener=1-0.5*cells.reduce((s,c)=>s+Math.abs(c.pa-c.pb),0);
+      return [
+        [`Records in analysis: ${$("species-a").value}`, number(a.length)],
+        [`Records in analysis: ${$("species-b").value}`, number(b.length)],
+        [`Occupied cells: ${$("species-a").value}`, number(occupiedA)],
+        [`Occupied cells: ${$("species-b").value}`, number(occupiedB)],
+        ["Cells holding both species", number(both)],
+        ["Jaccard index of occupied cells", (both/occupied).toFixed(2)],
+        [`Share of ${$("species-a").value} cells also holding ${$("species-b").value}`, (both/occupiedA).toFixed(2)],
+        [`Share of ${$("species-b").value} cells also holding ${$("species-a").value}`, (both/occupiedB).toFixed(2)],
+        ["Schoener's D (0 = no overlap, 1 = identical)", schoener.toFixed(2)],
+        ["Spearman correlation of cell counts", Number.isFinite(spearman(cells.map(c=>c.a),cells.map(c=>c.b))) ? spearman(cells.map(c=>c.a),cells.map(c=>c.b)).toFixed(2) : "—"],
+        ["Distance between record centroids (km)", number(Math.round(Math.hypot(mean(a,"x")-mean(b,"x"),mean(a,"y")-mean(b,"y"))/1000))],
+        [`Median latitude: ${$("species-a").value}`, median(a.map(r=>r.latitude)).toFixed(1)],
+        [`Median latitude: ${$("species-b").value}`, median(b.map(r=>r.latitude)).toFixed(1)]
+      ];
+    }
+    function median(values) { const s=values.slice().sort((a,b)=>a-b), n=s.length; return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2; }
+    function update() {
+      try {
+        filtered = filteredRecords();
+        analysisRecords = cellAssignment(filtered);
+        gridCells = makeCells(analysisRecords);
+        currentStats = getStats(analysisRecords, gridCells);
+        $("status").textContent = `${$("species-a").value}: ${number(filtered.filter(r=>r.species===$("species-a").value).length)} records. ${$("species-b").value}: ${number(filtered.filter(r=>r.species===$("species-b").value).length)} records.`;
+        $("stats").innerHTML = `<table><tbody>${currentStats.map(([m,v])=>`<tr><th>${esc(m)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table>`;
+        renderMethods();
+        renderTable();
+        renderCharts();
+        drawMap();
+        $("perm-result").textContent = "";
+        $("error").style.display = "none";
+      } catch (error) {
+        showError(error.message);
+        $("status").textContent = "";
+      }
+    }
+    function renderMethods() {
+      const s=Object.fromEntries(currentStats), a=$("species-a").value, b=$("species-b").value;
+      const unc=$("keep-unknown").checked?" (or unreported)":"";
+      $("methods").textContent=`Research-grade occurrence records of ${a} (n = ${s[`Records in analysis: ${a}`]}) and ${b} (n = ${s[`Records in analysis: ${b}`]}) from ${$("year-min").value} to ${$("year-max").value} were retained with coordinate uncertainty of ${$("max-unc").value} km or less${unc}${$("drop-obscured").checked?", excluding obscured locations":""}. Records were assigned to ${$("cell-km").value}-km equal-area grid cells (Albers conic)${$("thin").checked?" and thinned to one record per species, cell and year":""}. The species shared ${s["Cells holding both species"]} of ${number(gridCells.length)} occupied cells (Jaccard = ${s["Jaccard index of occupied cells"]}), and overlap in the distribution of records across cells was Schoener's D = ${s["Schoener's D (0 = no overlap, 1 = identical)"]}.`;
+    }
+    function polygonForCell(cell, size) {
+      const x0=cell.cx*size, y0=cell.cy*size, steps=6, pts=[];
+      const edge=[[x0,y0,x0+size,y0],[x0+size,y0,x0+size,y0+size],[x0+size,y0+size,x0,y0+size],[x0,y0+size,x0,y0]];
+      for(const [ax,ay,bx,by] of edge) for(let i=0;i<steps;i++) {
+        const t=i/steps, ll=proj4("LUPINE:AEA","EPSG:4326",[ax+(bx-ax)*t,ay+(by-ay)*t]);
+        pts.push([ll[1],ll[0]]);
+      }
+      return pts;
+    }
+    function drawMap() {
+      if (!map || !analysisRecords.length || !gridCells.length) return;
+      mapLayers.forEach(layer=>layer.remove()); mapLayers=[];
+      const mode=document.querySelector('input[name="map-mode"]:checked').value, a=$("species-a").value, b=$("species-b").value;
+      const add=layer=>{layer.addTo(map);mapLayers.push(layer);};
+      if(mode==="heat") {
+        const na=filtered.filter(r=>r.species===a).length, nb=filtered.filter(r=>r.species===b).length;
+        for(const [sp,color] of [[a,COLORS.A],[b,COLORS.B]]) {
+          const data=filtered.filter(r=>r.species===sp), weight=$("equalize").checked?Math.min(na,nb)/data.length:1;
+          add(L.heatLayer(data.map(r=>[r.latitude,r.longitude,weight]),{
+            radius:Number($("heat-radius").value),blur:Number($("heat-blur").value),max:Number($("heat-max").value),
+            minOpacity:.25,gradient:{0.2:"#fff",0.55:color,1:color}
+          }));
+        }
+        addLegend(`<span style="color:${COLORS.A}">●</span> ${esc(a)} &nbsp; <span style="color:${COLORS.B}">●</span> ${esc(b)}`);
+        $("map-caption").textContent="Kernel density of records. Each species has its own color; overlap appears where both are dense.";
+      } else {
+        const vals=gridCells.map(c=>Math.abs(c.log2Ratio)).filter(Number.isFinite), lim=Math.max(1,Math.ceil(Math.max(0,...vals)));
+        const features=gridCells.map(c=>{
+          let fill, opacity=.75;
+          if(mode==="cats") fill=c.category==="Both"?COLORS.both:c.category==="Only A"?COLORS.A:COLORS.B;
+          else if(!Number.isFinite(c.log2Ratio)){fill="#CFCFE0";opacity=.35;}
+          else {const t=Math.max(-1,Math.min(1,c.log2Ratio/lim));fill=t<0?mix("#E66101","#F7F7F7",t+1):mix("#F7F7F7","#5E3C99",t);}
+          const popup=`<i>${esc(a)}</i>: ${number(c.a)} records<br><i>${esc(b)}</i>: ${number(c.b)} records`;
+          return L.polygon(polygonForCell(c,Number($("cell-km").value)*1000),{color:"#fff",weight:.6,fillColor:fill,fillOpacity:opacity})
+            .bindPopup(popup).bindTooltip(popup);
+        });
+        add(L.featureGroup(features));
+        addLegend(mode==="cats"?`<span style="color:${COLORS.A}">●</span> Only ${esc(a)} &nbsp; <span style="color:${COLORS.both}">●</span> Both &nbsp; <span style="color:${COLORS.B}">●</span> Only ${esc(b)}`:`Share ratio: purple = ${esc(a)}, orange = ${esc(b)}; grey = single-species cells`);
+        $("map-caption").textContent=mode==="cats"?`Equal-area ${$("cell-km").value}-km cells occupied by one or both species after thinning (if selected).`:`Cells holding both species, colored by relative share of records.`;
+      }
+      if($("show-points").checked) {
+        let points=filtered;
+        if(points.length>4000) {
+          const stride=points.length/4000; points=Array.from({length:4000},(_,i)=>points[Math.floor(i*stride)]);
+        }
+        const markers=points.map(r=>L.circleMarker([r.latitude,r.longitude],{
+          radius:3.5,color:"#fff",weight:.8,fillColor:r.species===a?COLORS.A:COLORS.B,fillOpacity:.85
+        }).bindPopup(`<i>${esc(r.species)}</i><br>${esc(r.date||r.year)}${r.url?`<br><a href="${esc(r.url)}" target="_blank" rel="noopener">Open record</a>`:""}`));
+        add(L.featureGroup(markers));
+      }
+    }
+    function mix(a,b,t) {
+      const x=a.match(/[0-9a-f]{2}/gi).map(v=>parseInt(v,16)), y=b.match(/[0-9a-f]{2}/gi).map(v=>parseInt(v,16));
+      return "#"+x.map((v,i)=>Math.round(v+(y[i]-v)*t).toString(16).padStart(2,"0")).join("");
+    }
+    function addLegend(html) {
+      const control=L.control({position:"bottomright"});
+      control.onAdd=()=>{const div=L.DomUtil.create("div","leaflet-control");div.style.cssText="padding:8px 10px;background:#fff;border-radius:5px;box-shadow:0 1px 5px #7778";div.innerHTML=html;return div;};
+      control.addTo(map); mapLayers.push({remove:()=>map.removeControl(control)});
+    }
+    function fitMap() {
+      if (!filtered.length) return;
+      const lats=filtered.map(r=>r.latitude).sort((a,b)=>a-b), lons=filtered.map(r=>r.longitude).sort((a,b)=>a-b);
+      const q=(arr,p)=>arr[Math.min(arr.length-1,Math.floor((arr.length-1)*p))];
+      map.fitBounds([[q(lats,.01),q(lons,.01)],[q(lats,.99),q(lons,.99)]],{padding:[15,15]});
+    }
+    function renderTable() {
+      const headers=["species","date","year","month","latitude","longitude","uncertainty_km","obscured","country","state","url","record_id"];
+      $("records-table").innerHTML=`<thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${filtered.slice(0,500).map(r=>`<tr>${[r.species,r.date,r.year,Number.isFinite(r.month)?r.month:"",r.latitude,r.longitude,Number.isFinite(r.uncertainty)?r.uncertainty:"",r.obscured,r.country,r.state,r.url,r.id].map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+      $("table-note").textContent=filtered.length>500?`Showing first 500 of ${number(filtered.length)} records. Download the CSV for the full filtered set.`:"";
+    }
+    function svgChart(width,height,body) { return `<svg viewBox="0 0 ${width} ${height}" role="img">${body}</svg>`; }
+    function renderCharts() {
+      renderMonthChart(); renderYearChart(); renderLatChart(); renderScatter();
+    }
+    function renderMonthChart() {
+      const w=600,h=260,left=45,right=15,top=15,bottom=35,ph=h-top-bottom;
+      let body=`<line x1="${left}" y1="${top+ph}" x2="${w-right}" y2="${top+ph}" stroke="#aaa"/>`;
+      for(const [sp,color] of [[$("species-a").value,COLORS.A],[$("species-b").value,COLORS.B]]) {
+        const rows=filtered.filter(r=>r.species===sp&&Number.isFinite(r.month)), counts=Array(12).fill(0);
+        rows.forEach(r=>counts[r.month-1]++);
+        const total=counts.reduce((a,b)=>a+b,0)||1;
+        const points=counts.map((n,i)=>`${left+i*(w-left-right)/11},${top+ph-(n/total)*ph}`).join(" ");
+        body+=`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="3"/>`;
+        counts.forEach((n,i)=>{const x=left+i*(w-left-right)/11,y=top+ph-(n/total)*ph;body+=`<circle cx="${x}" cy="${y}" r="3.5" fill="${color}"/>`;});
+      }
+      MONTHS.forEach((m,i)=>{const x=left+i*(w-left-right)/11;body+=`<text x="${x}" y="${h-8}" text-anchor="middle">${m}</text>`;});
+      body+=`<text x="8" y="${top+8}">100%</text><text x="19" y="${top+ph}">0%</text>`;
+      $("month-chart").innerHTML=svgChart(w,h,body);
+    }
+    function renderYearChart() {
+      const years=[...new Set(filtered.map(r=>r.year))].sort((a,b)=>a-b), w=600,h=260,left=42,right=12,top=15,bottom=40,ph=h-top-bottom;
+      const counts=new Map();filtered.forEach(r=>{const k=`${r.species}|${r.year}`;counts.set(k,(counts.get(k)||0)+1);});
+      const max=Math.max(1,...[...counts.values()]), step=(w-left-right)/Math.max(1,years.length), bw=Math.min(15,step*.38);
+      let body=`<line x1="${left}" y1="${top+ph}" x2="${w-right}" y2="${top+ph}" stroke="#aaa"/>`;
+      years.forEach((year,i)=>{const cx=left+(i+.5)*step;for(const [sp,color,offset] of [[$("species-a").value,COLORS.A,-bw/2],[$("species-b").value,COLORS.B,bw/2]]){const n=counts.get(`${sp}|${year}`)||0, bh=n/max*(ph-12);body+=`<rect x="${cx+offset-bw/2}" y="${top+ph-bh}" width="${bw}" height="${bh}" fill="${color}"/>`;}if(years.length<20||i%Math.ceil(years.length/15)===0)body+=`<text x="${cx}" y="${h-8}" text-anchor="middle">${year}</text>`;});
+      $("year-chart").innerHTML=svgChart(w,h,body);
+    }
+    function renderLatChart() {
+      const w=600,h=260,left=42,right=12,top=15,bottom=30,ph=h-top-bottom,min=Math.min(...filtered.map(r=>r.latitude)),max=Math.max(...filtered.map(r=>r.latitude));
+      const low=Math.floor(min),high=Math.ceil(max),bins=Math.max(2,Math.min(40,high-low+1)),hist=(sp)=>{const arr=Array(bins).fill(0);filtered.filter(r=>r.species===sp).forEach(r=>{const i=Math.min(bins-1,Math.floor((r.latitude-low)/Math.max(.001,high-low)*bins));arr[i]++;});const sum=arr.reduce((a,b)=>a+b,0)||1;return arr.map(n=>n/sum);};
+      const a=hist($("species-a").value),b=hist($("species-b").value),maxD=Math.max(...a,...b,0.01); let body="";
+      for(let i=0;i<bins;i++){const y=top+ph-(i+1)*ph/bins, bw=a[i]/maxD*(w-left-right), bx=b[i]/maxD*(w-left-right);body+=`<rect x="${left}" y="${y}" width="${bw}" height="${ph/bins+1}" fill="${COLORS.A}" fill-opacity=".55"/><rect x="${left}" y="${y}" width="${bx}" height="${ph/bins+1}" fill="${COLORS.B}" fill-opacity=".5"/>`;}
+      body+=`<line x1="${left}" y1="${top+ph}" x2="${w-right}" y2="${top+ph}" stroke="#aaa"/><text x="${left}" y="${h-7}">${low}°</text><text x="${w-right}" y="${h-7}" text-anchor="end">${high}° latitude</text>`;
+      $("lat-chart").innerHTML=svgChart(w,h,body);
+    }
+    function renderScatter() {
+      const w=600,h=300,left=52,right=20,top=16,bottom=42,ph=h-top-bottom,pw=w-left-right;
+      const maxA=Math.max(1,...gridCells.map(c=>c.a)),maxB=Math.max(1,...gridCells.map(c=>c.b));
+      let body=`<line x1="${left}" y1="${top+ph}" x2="${w-right}" y2="${top+ph}" stroke="#aaa"/><line x1="${left}" y1="${top}" x2="${left}" y2="${top+ph}" stroke="#aaa"/>`;
+      const pts=gridCells.map(c=>[Math.log10(1+c.a)/Math.log10(1+maxA),Math.log10(1+c.b)/Math.log10(1+maxB)]);
+      for(let i=0;i<pts.length;i++){const[x,y]=pts[i],px=left+x*pw,py=top+ph-y*ph,c=gridCells[i],color=c.category==="Both"?COLORS.both:c.category==="Only A"?COLORS.A:COLORS.B;body+=`<circle cx="${px}" cy="${py}" r="3" fill="${color}" fill-opacity=".65"/>`;}
+      body+=`<text x="${left+pw/2}" y="${h-7}" text-anchor="middle">log10(1 + records): ${esc($("species-a").value)}</text><text transform="translate(13 ${top+ph/2}) rotate(-90)" text-anchor="middle">log10(1 + records): ${esc($("species-b").value)}</text>`;
+      $("scatter").innerHTML=svgChart(w,h,body);
+    }
+    function runPermutation() {
+      const button=$("run-perm");button.disabled=true;$("perm-result").textContent="Running permutations…";
+      setTimeout(()=>{
+        try {
+          const cellIds=[...new Set(analysisRecords.map(r=>r.cellId))], cellMap=new Map(cellIds.map((id,i)=>[id,i]));
+          const idx=analysisRecords.map(r=>cellMap.get(r.cellId)), labels=analysisRecords.map(r=>r.grp==="A"), k=cellIds.length,n=Number($("permutations").value);
+          const metric=lab=>{const a=new Uint32Array(k),b=new Uint32Array(k);for(let i=0;i<idx.length;i++)(lab[i]?a:b)[idx[i]]++;let sa=0,sb=0;for(let j=0;j<k;j++){sa+=a[j];sb+=b[j];}let d=0;for(let j=0;j<k;j++)d+=Math.abs(a[j]/sa-b[j]/sb);return 1-.5*d;};
+          const observed=metric(labels), nulls=new Float64Array(n), shuffled=labels.slice();
+          for(let j=0;j<n;j++){for(let i=shuffled.length-1;i>0;i--){const q=Math.floor(Math.random()*(i+1));[shuffled[i],shuffled[q]]=[shuffled[q],shuffled[i]];}nulls[j]=metric(shuffled);}
+          const sorted=[...nulls].sort((a,b)=>a-b),mean=nulls.reduce((s,x)=>s+x,0)/n,p=(1+nulls.filter(x=>x<=observed).length)/(n+1);
+          $("perm-result").textContent=`Observed D = ${observed.toFixed(3)}\nNull mean = ${mean.toFixed(3)} (95% range ${sorted[Math.floor(.025*(n-1))].toFixed(3)} to ${sorted[Math.ceil(.975*(n-1))].toFixed(3)})\nP = ${p.toFixed(3)} (${n} permutations, one-sided)`;
+        } catch(error) { showError(`Permutation test failed: ${error.message}`); $("perm-result").textContent=""; }
+        finally {button.disabled=false;}
+      },20);
+    }
+    function csv(rows) {
+      const quote=v=>{const s=String(v==null?"":v);return /[",\r\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
+      return rows.map(row=>row.map(quote).join(",")).join("\r\n");
+    }
+    function download(kind) {
+      let name, rows;
+      if(kind==="records") {
+        name="filtered_records.csv";const head=["species","obs_date","year","month","latitude","longitude","uncertainty_km","obscured","country","state","url","record_id"];
+        rows=[head,...filtered.map(r=>[r.species,r.date,r.year,r.month,r.latitude,r.longitude,r.uncertainty,r.obscured,r.country,r.state,r.url,r.id])];
+      } else if(kind==="cells") {
+        name=`grid_cells_${$("cell-km").value}km.csv`;
+        const head=["cell_center_lon","cell_center_lat",`n_${$("species-a").value}`,`n_${$("species-b").value}`,"share_a","share_b","category","log2_share_ratio_a_over_b"];
+        rows=[head,...gridCells.map(c=>{const ll=proj4("LUPINE:AEA","EPSG:4326",[(c.cx+.5)*Number($("cell-km").value)*1000,(c.cy+.5)*Number($("cell-km").value)*1000]);return[ll[0],ll[1],c.a,c.b,c.pa,c.pb,c.category,c.log2Ratio];})];
+      } else {name="overlap_metrics.csv";rows=[["Metric","Value"],...currentStats];}
+      const blob=new Blob(["\ufeff"+csv(rows)],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+      a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);
+    }
+    loadData().catch(error=>{ $("load-status").textContent="Data could not be loaded."; showError(error.message); });
+  </script>
+</body>
+</html>
