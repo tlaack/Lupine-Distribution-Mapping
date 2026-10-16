@@ -229,8 +229,8 @@
       const quality = txt(row, ["quality_grade"]).toLowerCase();
       if (status === "ABSENT" || (quality && quality !== "research")) return null;
       const projected = proj4("EPSG:4326", "LUPINE:AEA", [lon, lat]);
-      const id = txt(row, ["gbifID", "id", "occurrenceID"]);
-      const rawUrl = txt(row, ["url", "references"]);
+      const gbifId = txt(row, ["gbifID"]);
+      const id = gbifId || txt(row, ["id", "occurrenceID"]);
       const uncertainty = parseNum(txt(row, ["coordinateUncertaintyInMeters", "positional_accuracy"])) / 1000;
       return {
         id: id || `${source}:${lon}:${lat}:${year}:${match[1]}`,
@@ -239,7 +239,8 @@
         uncertainty, obscured: ["true", "t", "1"].includes(txt(row, ["coordinates_obscured"]).toLowerCase()),
         country: txt(row, ["countryCode", "place_country_name"]),
         state: txt(row, ["stateProvince", "place_state_name"]),
-        url: rawUrl || (/^\d+$/.test(txt(row, ["gbifID"])) ? `https://www.gbif.org/occurrence/${txt(row, ["gbifID"])}` : "")
+        gbifId,
+        url: /^\d+$/.test(gbifId) ? `https://www.gbif.org/occurrence/${gbifId}` : ""
       };
     }
     async function loadData() {
@@ -415,9 +416,15 @@
         renderTable();
         renderCharts();
         drawMap();
+        $("run-perm").disabled = false;
         $("perm-result").textContent = "";
         $("error").style.display = "none";
       } catch (error) {
+        filtered = []; analysisRecords = []; gridCells = []; currentStats = [];
+        ["stats", "methods", "records-table", "table-note", "scatter", "month-chart", "year-chart", "lat-chart"].forEach(id => $(id).innerHTML = "");
+        if (map) { mapLayers.forEach(layer => layer.remove()); mapLayers = []; }
+        $("run-perm").disabled = true;
+        $("perm-result").textContent = "";
         showError(error.message);
         $("status").textContent = "";
       }
@@ -474,7 +481,7 @@
         }
         const markers=points.map(r=>L.circleMarker([r.latitude,r.longitude],{
           radius:3.5,color:"#fff",weight:.8,fillColor:r.species===a?COLORS.A:COLORS.B,fillOpacity:.85
-        }).bindPopup(`<i>${esc(r.species)}</i><br>${esc(r.date||r.year)}${r.url?`<br><a href="${esc(r.url)}" target="_blank" rel="noopener">Open record</a>`:""}`));
+        }).bindPopup(`<i>${esc(r.species)}</i><br>${esc(r.date||r.year)}${r.gbifId?`<br>GBIF ID: ${esc(r.gbifId)}`:""}${r.url?`<br><a href="${esc(r.url)}" target="_blank" rel="noopener">View record on GBIF</a>`:"<br><span>No GBIF occurrence page is available for this record.</span>"}`));
         add(L.featureGroup(markers));
       }
     }
